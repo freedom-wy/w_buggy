@@ -1,0 +1,2 @@
+# w_buggy
+phpmyadmin密码爆破并利用mysql日志写一句话shell
