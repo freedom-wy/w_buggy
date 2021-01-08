@@ -1,9 +1,24 @@
+import aiofiles
 import re
 import aiohttp
 import asyncio
 
 # 非dns解析情况下cookie设置
 jar = aiohttp.CookieJar(unsafe=True)
+# 队列停止符
+end_flag = object()
+
+
+async def read_file(filename, queue):
+    async with aiofiles.open(filename, mode="r", encoding="utf-8") as f:
+        while True:
+            line = await f.readline()
+            if not line:
+                break
+            else:
+                line = line.strip("\n")
+                queue.put(line)
+        queue.put(end_flag)
 
 
 async def handle_request(session, url, method, **kwargs):
