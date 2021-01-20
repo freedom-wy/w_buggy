@@ -1,5 +1,6 @@
 import re
-import threading
+import sys
+from argparse import ArgumentParser
 import requests
 import aiofiles
 import asyncio
@@ -114,11 +115,20 @@ def main(host, max_workers):
             wait(handle_phpmyadmin, return_when=FIRST_COMPLETED)
             for data in as_completed(handle_phpmyadmin):
                 if data.result():
-                    print(time.time())
                     return
 
 
 if __name__ == '__main__':
+    parser = ArgumentParser(prog="W_BUGGY", usage="phpmyadmin爆破上传一句话", epilog="微信公众号：你丫才秃头")
+    parser.add_argument("URL", help="探测的URL,如:http://www.test.com或http://192.168.1.1")
+    parser.add_argument("-t", "--thread", type=int, dest="thread", help="线程数")
+    args = parser.parse_args()
+    url = sys.argv[1]
+    max_worker = 100
+    if args.thread:
+        max_worker = args.thread
+
+
     def handle_time():
         """处理时间"""
         timestamp = time.time()
@@ -130,6 +140,6 @@ if __name__ == '__main__':
     start_timestamp, start_time = handle_time()
     print("开始扫描时间{}".format(start_time))
     # 调用主方法
-    main(host="http://192.168.52.143", max_workers=100)
+    main(host=url, max_workers=max_worker)
     end_timestamp, end_time = handle_time()
     print("扫描完成时间{}, 扫描耗时:{}分钟".format(end_time, int((end_timestamp - start_timestamp) / 60)))
