@@ -40,7 +40,7 @@ async def handle_request(session, url, method, data=None, **kwargs):
                 code = response.status
                 return code, text
         except Exception as e:
-            print(str(e))
+            # print(str(e))
             return None, None
     elif method == "POST":
         try:
@@ -49,7 +49,7 @@ async def handle_request(session, url, method, data=None, **kwargs):
                 code = response.status
                 return code, text
         except Exception as e:
-            print(str(e))
+            # print(str(e))
             return None, None
 
 
