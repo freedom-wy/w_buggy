@@ -53,7 +53,7 @@ async def handle_request(session, url, method, data=None, **kwargs):
 async def phpmyadmin_crack(host, username, password):
     """phpmyadmin密码爆破"""
     timeout = aiohttp.ClientTimeout(total=30)
-    async with aiohttp.TCPConnector(force_close=True, enable_cleanup_closed=True, ssl=False) as tc:
+    async with aiohttp.TCPConnector(limit=20, force_close=True, enable_cleanup_closed=True, ssl=False) as tc:
         async with aiohttp.ClientSession(connector=tc, timeout=timeout, cookie_jar=jar) as session:
             url = host + "/phpmyadmin/index.php"
             # 第一次请求获取token
