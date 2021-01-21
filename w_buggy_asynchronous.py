@@ -204,10 +204,9 @@ def main(host):
     up = multiprocessing.Process(target=handle_user_pass)
     up.start()
     up.join()
-    print(username_list)
-    # login = threading.Thread(target=handle_login, args=(host,))
-    # login.start()
-    # login.join()
+    login = multiprocessing.Process(target=handle_login, args=(host,))
+    login.start()
+    login.join()
     # if login_result:
     #     write_trojan(token_value=login_result, host=host)
 
