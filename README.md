@@ -11,7 +11,10 @@ w_buggy_asynchronous.py 异步版本
 w_buggy_synchronize.py 异步版本
 # 
 #### 支持phpmyadmin版本
-Version 3.5.8.2
+Version 3.5.8.2  
+虚拟机里的环境动不动就死了。。。,协程控制到2个任务,慢的蜗牛一样
+#### 运行环境
+linux, >=python3.7
 
 #### 一句话木马路径
 当前默认为www目录下的test.php,密码默认为test,使用蚁剑连接
