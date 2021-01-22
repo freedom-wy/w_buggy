@@ -12,8 +12,6 @@ jar = aiohttp.CookieJar(unsafe=True)
 # 用户名密码队列
 username_list = multiprocessing.Manager().list()
 password_list = multiprocessing.Manager().list()
-# 并发限制
-semaphore = asyncio.Semaphore(1000)
 
 
 async def read_file(filename, queue):
@@ -194,7 +192,8 @@ def handle_user_pass():
 async def async_handle_login(host):
     for username in username_list:
         tasks = [asyncio.create_task(phpmyadmin_crack(host, username, password)) for password in password_list]
-        await asyncio.wait(tasks)
+        done, pending = await asyncio.wait(tasks)
+        print(done)
 
 
 def handle_login(host):
@@ -222,10 +221,14 @@ if __name__ == '__main__':
     parser.add_argument("URL", help="探测的URL,如:http://www.test.com或http://192.168.1.1")
     parser.add_argument("-t", "--thread", type=int, dest="thread", help="线程数")
     args = parser.parse_args()
+
     url = sys.argv[1]
-    max_worker = 100
+
+    max_worker = 1
     if args.thread:
         max_worker = args.thread
+    # 并发限制
+    semaphore = asyncio.Semaphore(max_worker)
 
 
     def handle_time():

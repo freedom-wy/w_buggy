@@ -7,7 +7,7 @@ w_buggy名称由来,小丑 巴基 (バギー Bagī?, Buggy) 是巴基海贼团�
 像个二逼似的
 ```
 
-w_buggy_asynchronous.py 异步版本
+w_buggy_asynchronous.py 异步版本  
 w_buggy_synchronize.py 异步版本
 # 
 #### 支持phpmyadmin版本
